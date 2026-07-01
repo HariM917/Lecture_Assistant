@@ -1,43 +1,51 @@
 """
-Backend Entry Point for FastAPI Server
-Initializes and runs the Multilingual Lecture Assistant
+Backend entry point for the Multilingual Lecture Assistant.
+
+Usage:
+    python main.py              # Start with defaults (port 5000)
+    MOCK_MODE=True python main.py   # Force mock services
 """
+
 import uvicorn
 import logging
+import sys
 
-# Configure logging
+# Configure logging before anything else
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s │ %(name)-25s │ %(levelname)-7s │ %(message)s",
+    datefmt="%H:%M:%S",
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("lecture-assistant")
 
-# Import the FastAPI app from app module
-from app.main import create_app
+# Import the FastAPI app (this triggers create_app → lifespan)
+from app.main import app  # noqa: E402, F401
+from app.core.config import get_settings  # noqa: E402
 
-# Create the FastAPI application
-app = create_app()
+settings = get_settings()
 
 if __name__ == "__main__":
-    logger.info("=" * 70)
-    logger.info("🚀 Starting Multilingual Lecture Assistant Backend")
-    logger.info("=" * 70)
-    logger.info("📡 Server running on: http://0.0.0.0:5000")
-    logger.info("📚 API Docs: http://localhost:5000/api/docs")
-    logger.info("🔍 ReDoc: http://localhost:5000/api/redoc")
-    logger.info("=" * 70)
-    
+    logger.info("=" * 60)
+    logger.info("🎓 Multilingual Lecture Assistant")
+    logger.info(f"   Version     : {settings.APP_VERSION}")
+    logger.info(f"   Environment : {settings.APP_ENVIRONMENT}")
+    logger.info(f"   Server      : http://localhost:{settings.PORT}")
+    logger.info(f"   API Docs    : http://localhost:{settings.PORT}/api/docs")
+    logger.info(f"   Database    : {'SQLite' if settings.is_sqlite else 'PostgreSQL'}")
+    logger.info("=" * 60)
+
     try:
         uvicorn.run(
             "app.main:app",
-            host="0.0.0.0",
-            port=5000,
-            reload=True,
+            host=settings.HOST,
+            port=settings.PORT,
+            reload=settings.DEBUG,
             log_level="info",
-            access_log=True
+            access_log=True,
         )
     except KeyboardInterrupt:
-        logger.info("| Shutting down gracefully...")
+        logger.info("Shutting down gracefully...")
+        sys.exit(0)
     except Exception as e:
-        logger.error(f"❌ Error starting server: {e}")
-        raise
+        logger.error(f"Failed to start: {e}")
+        sys.exit(1)

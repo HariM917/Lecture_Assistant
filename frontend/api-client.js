@@ -1,3 +1,6 @@
+/**
+ * API Client — handles all backend communication with retry logic.
+ */
 class APIClient {
     constructor(baseUrl = 'http://localhost:5000', wsUrl = 'ws://localhost:5000') {
         this.baseUrl = baseUrl;
@@ -10,231 +13,144 @@ class APIClient {
         this.sessionId = null;
     }
 
-    // REST API Calls
-    async createSession(title, subject, instructor) {
-        try {
-            const response = await fetch(`${this.baseUrl}/api/lecture/sessions`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, subject, instructor })
-            });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const data = await response.json();
-            this.sessionId = data.id;
-            return data;
-        } catch (error) {
-            console.error('CreateSession error:', error);
-            this.showToast('Failed to create session', 'error');
-            throw error;
+    // ── Internal fetch wrapper with retry ─────────────────────────
+    async _fetch(url, options = {}, retries = 2) {
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    signal: AbortSignal.timeout(30000),
+                });
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorBody}`);
+                }
+                return await response.json();
+            } catch (error) {
+                if (attempt === retries) throw error;
+                const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
+                await new Promise(r => setTimeout(r, delay));
+            }
         }
+    }
+
+    // ── Session APIs ──────────────────────────────────────────────
+    async createSession(title, subject, instructor) {
+        const data = await this._fetch(`${this.baseUrl}/api/lecture/sessions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, subject, instructor }),
+        });
+        this.sessionId = data?.session?.id || data?.id;
+        return data?.session || data;
     }
 
     async endSession() {
-        try {
-            const response = await fetch(`${this.baseUrl}/api/lecture/sessions/${this.sessionId}/end`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return await response.json();
-        } catch (error) {
-            console.error('EndSession error:', error);
-            this.showToast('Failed to end session', 'error');
-            throw error;
-        }
+        return this._fetch(
+            `${this.baseUrl}/api/lecture/sessions/${this.sessionId}/end`,
+            { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+        );
     }
 
+    // ── Transcription ─────────────────────────────────────────────
     async transcribeAudio(audioBlob, language = 'en') {
-        try {
-            const formData = new FormData();
-            formData.append('file', audioBlob, 'audio.webm');
-            formData.append('language', language);
+        const formData = new FormData();
+        formData.append('file', audioBlob, audioBlob.name || 'audio.webm');
+        formData.append('language', language);
 
-            const response = await fetch(
-                `${this.baseUrl}/api/lecture/sessions/${this.sessionId}/transcribe`,
-                {
-                    method: 'POST',
-                    body: formData
-                }
-            );
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return await response.json();
-        } catch (error) {
-            console.error('TranscribeAudio error:', error);
-            this.showToast('Failed to transcribe audio', 'error');
-            throw error;
-        }
+        return this._fetch(
+            `${this.baseUrl}/api/lecture/sessions/${this.sessionId}/transcribe`,
+            { method: 'POST', body: formData },
+            1 // fewer retries for large uploads
+        );
     }
 
+    // ── Translation ───────────────────────────────────────────────
     async translateText(transcriptionId, targetLanguage) {
-        try {
-            const response = await fetch(
-                `${this.baseUrl}/api/lecture/transcriptions/${transcriptionId}/translate`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ target_language: targetLanguage })
-                }
-            );
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return await response.json();
-        } catch (error) {
-            console.error('TranslateText error:', error);
-            throw error;
-        }
+        return this._fetch(
+            `${this.baseUrl}/api/lecture/transcriptions/${transcriptionId}/translate`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target_language: targetLanguage }),
+            }
+        );
     }
 
     async translateToAllLanguages(transcriptionId) {
-        try {
-            const response = await fetch(
-                `${this.baseUrl}/api/lecture/transcriptions/${transcriptionId}/translate-all`,
-                { method: 'POST', headers: { 'Content-Type': 'application/json' } }
-            );
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return await response.json();
-        } catch (error) {
-            console.error('TranslateToAll error:', error);
-            throw error;
-        }
+        return this._fetch(
+            `${this.baseUrl}/api/lecture/transcriptions/${transcriptionId}/translate-all`,
+            { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+        );
     }
 
+    // ── Analysis ──────────────────────────────────────────────────
     async extractKeywords(transcriptionId) {
-        try {
-            const response = await fetch(
-                `${this.baseUrl}/api/lecture/transcriptions/${transcriptionId}/extract`,
-                { method: 'POST' }
-            );
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return await response.json();
-        } catch (error) {
-            console.error('ExtractKeywords error:', error);
-            throw error;
-        }
+        return this._fetch(
+            `${this.baseUrl}/api/lecture/transcriptions/${transcriptionId}/extract`,
+            { method: 'POST' }
+        );
     }
 
     async summarizeSession() {
-        try {
-            const response = await fetch(
-                `${this.baseUrl}/api/lecture/sessions/${this.sessionId}/summarize`,
-                { method: 'POST' }
-            );
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return await response.json();
-        } catch (error) {
-            console.error('SummarizeSession error:', error);
-            throw error;
-        }
+        return this._fetch(
+            `${this.baseUrl}/api/lecture/sessions/${this.sessionId}/summarize`,
+            { method: 'POST' }
+        );
     }
 
+    // ── Health ─────────────────────────────────────────────────────
     async checkHealth() {
         try {
-            console.log(`🔍 Checking health at: ${this.baseUrl}/health`);
-            const response = await fetch(`${this.baseUrl}/health`, {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
+            const resp = await fetch(`${this.baseUrl}/health`, {
+                signal: AbortSignal.timeout(5000),
             });
-            console.log(`✅ Health check response: ${response.status}`);
-            if (response.ok) {
-                const data = await response.json();
-                console.log(`✅ Backend health: ${JSON.stringify(data)}`);
-                return true;
-            }
-            console.warn(`⚠️ Health check returned status: ${response.status}`);
-            return false;
-        } catch (error) {
-            console.error(`❌ Health check failed: ${error.message}`, error);
-            console.error(`💡 Trying to connect to: ${this.baseUrl}`);
+            return resp.ok;
+        } catch {
             return false;
         }
     }
 
-    // WebSocket Connection
+    // ── WebSocket ─────────────────────────────────────────────────
     connectWebSocket() {
         return new Promise((resolve, reject) => {
+            if (!this.sessionId) return reject(new Error('No session ID'));
+
+            const wsPath = `${this.wsUrl}/api/lecture/ws/${this.sessionId}/client_${Date.now()}`;
+
             try {
-                const wsPath = this.sessionId 
-                    ? `${this.wsUrl}/api/lecture/ws/${this.sessionId}/client_${Math.random()}`
-                    : null;
-
-                if (!wsPath) {
-                    this.showToast('No session ID available', 'error');
-                    return reject(new Error('No session ID'));
-                }
-
                 this.ws = new WebSocket(wsPath);
-
                 this.ws.onopen = () => {
-                    console.log('WebSocket connected');
                     this.reconnectAttempts = 0;
-                    this.showToast('Connected to backend', 'success');
                     resolve();
                 };
-
                 this.ws.onmessage = (event) => {
                     try {
-                        const message = JSON.parse(event.data);
-                        this.wsMessageHandlers.forEach(handler => handler(message));
-                    } catch (error) {
-                        console.error('WebSocket message parse error:', error);
+                        const msg = JSON.parse(event.data);
+                        this.wsMessageHandlers.forEach(h => h(msg));
+                    } catch (e) {
+                        console.error('WS parse error:', e);
                     }
                 };
-
-                this.ws.onerror = (error) => {
-                    console.error('WebSocket error:', error);
-                    this.showToast('WebSocket error', 'error');
-                    reject(error);
-                };
-
-                this.ws.onclose = () => {
-                    console.log('WebSocket disconnected');
-                    this.attemptReconnect();
-                };
-
-            } catch (error) {
-                reject(error);
+                this.ws.onerror = () => reject(new Error('WebSocket error'));
+                this.ws.onclose = () => this._attemptReconnect();
+            } catch (e) {
+                reject(e);
             }
         });
     }
 
-    attemptReconnect() {
+    _attemptReconnect() {
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
-            console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
-            setTimeout(() => this.connectWebSocket().catch(console.error), this.reconnectDelay);
-        } else {
-            this.showToast('Failed to reconnect to backend', 'error');
+            setTimeout(() => this.connectWebSocket().catch(() => {}), this.reconnectDelay);
         }
     }
 
-    onMessage(handler) {
-        this.wsMessageHandlers.push(handler);
-    }
-
-    sendMessage(type, data) {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify({ type, data }));
-        }
-    }
+    onMessage(handler) { this.wsMessageHandlers.push(handler); }
 
     disconnect() {
-        if (this.ws) {
-            this.ws.close();
-            this.ws = null;
-        }
-    }
-
-    showToast(message, type = 'info') {
-        const toast = document.getElementById('toast');
-        if (toast) {
-            toast.textContent = message;
-            toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg ${
-                type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-blue-600'
-            } text-white`;
-            
-            setTimeout(() => {
-                toast.classList.add('hidden');
-            }, 3000);
-        }
+        if (this.ws) { this.ws.close(); this.ws = null; }
     }
 }
 

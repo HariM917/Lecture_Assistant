@@ -1,4 +1,7 @@
-// Main Application
+/**
+ * Lecture Assistant — Main Application
+ * Orchestrates session management, audio processing pipeline, and UI updates.
+ */
 class LectureAssistantApp {
     constructor() {
         this.recorder = new AudioRecorder();
@@ -13,75 +16,38 @@ class LectureAssistantApp {
         this.isProcessing = false;
     }
 
+    // ── Initialization ────────────────────────────────────────────
     async init() {
-        console.log('🚀 Initializing Lecture Assistant Application...');
-        console.log(`📡 Backend URL: ${this.api.baseUrl}`);
-        console.log(`🔗 WebSocket URL: ${this.api.wsUrl}`);
         this.addLog('Initializing application...');
-        
+
         try {
-            // Check backend health
-            this.addLog(`🔍 Checking backend connection at ${this.api.baseUrl}...`);
-            console.log(`🔍 About to check health at: ${this.api.baseUrl}/health`);
-            const isHealthy = await this.api.checkHealth();
-            
-            if (!isHealthy) {
-                this.updateConnectionStatus(false, `❌ Failed to connect to backend at ${this.api.baseUrl}`);
-                this.addLog(`❌ Backend connection failed - URL: ${this.api.baseUrl}`);
-                console.error(`❌ Backend not responding at ${this.api.baseUrl}`);
+            // Check backend
+            const healthy = await this.api.checkHealth();
+
+            if (!healthy) {
+                this.setConnectionStatus('error', 'Backend offline');
+                this.addLog('Backend not responding — check if server is running', 'error');
                 return;
             }
-            this.updateConnectionStatus(true);
-            this.addLog(`✅ Backend connected at ${this.api.baseUrl}`);
-            console.log(`✅ Backend healthy at ${this.api.baseUrl}`);
 
-            // Initialize microphone
+            this.setConnectionStatus('connected', 'Connected');
+            this.addLog('Backend connected');
+
+            // Init microphone
             const micReady = await this.recorder.init();
-            if (!micReady) {
-                console.warn('⚠️ Microphone not available');
-                this.addLog('⚠️ Microphone not available');
-            } else {
-                this.addLog('✅ Microphone initialized');
-            }
+            this.addLog(micReady ? 'Microphone ready' : 'Microphone unavailable', micReady ? '' : 'error');
 
             this.setupEventListeners();
-            this.displaySystemInfo();
-            console.log('✅ Application ready');
-            this.addLog('✅ Application ready');
+            this.addLog('Application ready', 'success');
         } catch (error) {
-            console.error('❌ Initialization error:', error);
-            this.addLog(`❌ Init error: ${error.message}`);
+            this.addLog(`Init error: ${error.message}`, 'error');
+            this.setConnectionStatus('error', 'Error');
         }
     }
 
-    displaySystemInfo() {
-        const info = `
-🖥️  SYSTEM INFORMATION:
-═══════════════════════════════════════
-Backend Connection:
-  📡 URL: ${this.api.baseUrl}
-  🟢 Status: Connected
-  ✅ Health: OK
-  📚 API Docs: ${this.api.baseUrl}/api/docs
-  
-Frontend Configuration:
-  🎨 Status: Running on port 3000
-  📍 WebSocket: ${this.api.wsUrl}
-  ✅ Status: Operational
-  
-System Features:
-  🗣️  Language Support: 9 languages (EN, TA, HI, TE, KN, ML, DE, ZH, JA)
-  🎤 Transcription: Enabled
-  🌍 Translation: Enabled
-  🏷️  Keyword Extraction: Enabled
-  ✨ Summarization: Enabled
-═══════════════════════════════════════
-        `;
-        this.addLog(info);
-    }
-
+    // ── Event Listeners ───────────────────────────────────────────
     setupEventListeners() {
-        // Session Management
+        // Session
         document.getElementById('createSessionBtn').addEventListener('click', () => this.createSession());
         document.getElementById('endSessionBtn').addEventListener('click', () => this.endSession());
 
@@ -89,31 +55,50 @@ System Features:
         document.getElementById('startRecordBtn').addEventListener('click', () => this.startRecording());
         document.getElementById('stopRecordBtn').addEventListener('click', () => this.stopRecording());
 
-        // File Upload
+        // Upload
         document.getElementById('uploadAudioBtn').addEventListener('click', () => this.uploadAudio());
 
-        // WebSocket message handler
-        this.api.onMessage((message) => this.handleWebSocketMessage(message));
+        // Drag & drop
+        const dropZone = document.getElementById('uploadZone');
+        if (dropZone) {
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                if (file) document.getElementById('audioFile').files = e.dataTransfer.files;
+            });
+        }
+
+        // WebSocket
+        this.api.onMessage((msg) => this.handleWSMessage(msg));
     }
 
+    // ── Connection Status ─────────────────────────────────────────
+    setConnectionStatus(status, label) {
+        const dot = document.getElementById('statusDot');
+        const lbl = document.getElementById('statusLabel');
+        dot.className = `status-dot ${status}`;
+        lbl.textContent = label;
+    }
+
+    // ── Session Management ────────────────────────────────────────
     async createSession() {
         const title = document.getElementById('lectureTitle').value.trim();
         const subject = document.getElementById('subject').value.trim();
         const instructor = document.getElementById('instructor').value.trim();
 
         if (!title || !subject || !instructor) {
-            this.recorder.showToast('❌ Please fill in all session details', 'error');
-            this.addLog('⚠️ Missing session details');
+            this.recorder.showToast('Please fill in all fields', 'error');
             return;
         }
 
         try {
-            this.addLog('📝 Creating new session...');
+            this.addLog('Creating session...');
             const session = await this.api.createSession(title, subject, instructor);
-            
-            if (!session || !session.id) {
-                throw new Error('Invalid session response');
-            }
+
+            if (!session?.id) throw new Error('Invalid session response');
 
             this.api.sessionId = session.id;
             this.sessionActive = true;
@@ -122,28 +107,22 @@ System Features:
             this.allKeywords = {};
             this.processedLanguages.clear();
 
-            // Update UI
+            // UI updates
             document.getElementById('createSessionBtn').disabled = true;
             document.getElementById('endSessionBtn').disabled = false;
-            document.getElementById('sessionInfo').innerHTML = `
-                <div class="text-green-600 font-bold">✅ Session Created</div>
-                <div class="text-sm">ID: ${session.id.substring(0, 12)}...</div>
-                <div class="text-sm">Title: ${session.title}</div>
-                <div class="text-sm">Subject: ${session.subject}</div>
-            `;
+            document.getElementById('sessionStatus').innerHTML =
+                `<span style="color: var(--accent-green)">● Active</span> — ${session.title}`;
 
-            // Start session duration timer
-            this.startSessionDurationTimer();
+            this.startDurationTimer();
 
-            // Connect WebSocket
-            await this.api.connectWebSocket();
+            // Try WebSocket (non-blocking)
+            this.api.connectWebSocket().catch(() => {});
 
-            this.recorder.showToast(`✅ Session "${title}" created`, 'success');
-            this.addLog(`✅ Session created: ${title} (${session.id.substring(0, 8)}...)`);
+            this.recorder.showToast(`Session "${title}" started`, 'success');
+            this.addLog(`Session started: ${title}`, 'success');
         } catch (error) {
-            this.recorder.showToast(`❌ Failed: ${error.message}`, 'error');
-            this.addLog(`❌ Session creation failed: ${error.message}`);
-            console.error('Create session error:', error);
+            this.recorder.showToast(`Failed: ${error.message}`, 'error');
+            this.addLog(`Session creation failed: ${error.message}`, 'error');
         }
     }
 
@@ -151,326 +130,278 @@ System Features:
         if (!this.sessionActive) return;
 
         try {
-            this.addLog('📋 Ending session...');
             await this.api.endSession();
             this.sessionActive = false;
-            
-            // Update UI
+
             document.getElementById('createSessionBtn').disabled = false;
             document.getElementById('endSessionBtn').disabled = true;
-            document.getElementById('sessionInfo').textContent = '⚪ No active session';
+            document.getElementById('sessionStatus').textContent = 'Create a session to begin';
 
-            if (this.sessionDurationInterval) {
-                clearInterval(this.sessionDurationInterval);
-            }
-
+            if (this.sessionDurationInterval) clearInterval(this.sessionDurationInterval);
             this.api.disconnect();
-            this.recorder.showToast('✅ Session ended', 'success');
-            this.addLog('✅ Session ended successfully');
+
+            this.recorder.showToast('Session ended', 'success');
+            this.addLog('Session ended', 'success');
         } catch (error) {
-            this.recorder.showToast(`❌ Failed: ${error.message}`, 'error');
-            this.addLog(`❌ End session failed: ${error.message}`);
+            this.recorder.showToast(`Failed: ${error.message}`, 'error');
         }
     }
 
-    async startRecording() {
+    // ── Recording ─────────────────────────────────────────────────
+    startRecording() {
         if (!this.sessionActive) {
-            this.recorder.showToast('❌ Create a session first', 'error');
+            this.recorder.showToast('Start a session first', 'error');
             return;
         }
 
-        const started = this.recorder.start();
-        if (started) {
+        if (this.recorder.start()) {
             document.getElementById('startRecordBtn').disabled = true;
             document.getElementById('stopRecordBtn').disabled = false;
-            document.getElementById('recordingStatus').textContent = '🔴 Recording... (max 5s)';
-            this.recorder.showToast('🎙️ Recording started', 'info');
-            this.addLog('🎙️ Recording started');
+            this.addLog('Recording started');
 
-            // Auto-stop after 5 seconds
+            // Auto-stop after 30 seconds
             setTimeout(() => {
-                if (this.recorder.isRecording) {
-                    this.stopRecording();
-                }
-            }, 5000);
+                if (this.recorder.isRecording) this.stopRecording();
+            }, 30000);
         }
     }
 
     async stopRecording() {
-        const audioBlob = this.recorder.stop();
+        const blob = this.recorder.stop();
         document.getElementById('startRecordBtn').disabled = false;
         document.getElementById('stopRecordBtn').disabled = true;
-        document.getElementById('recordingStatus').textContent = `⏹️ Stopped (${this.recorder.getRecordingDuration()}s)`;
 
-        if (audioBlob) {
-            this.addLog('⏹️ Recording stopped, processing...');
-            this.recorder.showToast('⏹️ Processing audio...', 'info');
-            await this.processAudio(audioBlob);
+        if (blob) {
+            this.addLog(`Recording stopped (${this.recorder.getRecordingDuration()}s)`);
+            await this.processAudio(blob);
         }
     }
 
+    // ── Upload ────────────────────────────────────────────────────
     async uploadAudio() {
         if (!this.sessionActive) {
-            this.recorder.showToast('❌ Create a session first', 'error');
+            this.recorder.showToast('Start a session first', 'error');
             return;
         }
 
         const fileInput = document.getElementById('audioFile');
         if (!fileInput.files.length) {
-            this.recorder.showToast('❌ Select an audio file', 'error');
+            this.recorder.showToast('Select an audio file', 'error');
             return;
         }
 
-        const audioBlob = fileInput.files[0];
-        this.addLog(`📁 Uploading file: ${audioBlob.name} (${(audioBlob.size / 1024).toFixed(2)} KB)`);
-        this.recorder.showToast('📁 Processing audio file...', 'info');
-        await this.processAudio(audioBlob);
+        const file = fileInput.files[0];
+        this.addLog(`Uploading: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+        await this.processAudio(file);
     }
 
+    // ── Processing Pipeline ───────────────────────────────────────
     async processAudio(audioBlob) {
         if (this.isProcessing) {
-            this.addLog('⚠️ Already processing, please wait...');
+            this.addLog('Already processing, please wait...', 'error');
             return;
         }
 
         this.isProcessing = true;
+        const language = document.getElementById('audioLanguage').value;
+        this.resetPipeline();
+
         try {
-            const language = document.getElementById('audioLanguage').value;
-            this.addLog(`\n${'='.repeat(60)}`);
-            this.addLog(`📤 Starting audio processing (Language: ${language})`);
-            this.addLog(`${'='.repeat(60)}`);
-
             // Step 1: TRANSCRIBE
-            this.addLog(`\n[1/4] 🎤 Transcribing audio...`);
-            const transcriptResult = await this.api.transcribeAudio(audioBlob, language);
-            
-            if (!transcriptResult || !transcriptResult.id) {
-                throw new Error('No transcription response received');
-            }
+            this.setStepActive('transcribe');
+            this.addLog('[1/4] Transcribing audio...');
 
-            this.lastTranscriptionId = transcriptResult.id;
+            const result = await this.api.transcribeAudio(audioBlob, language);
+            if (!result?.id) throw new Error('Transcription failed');
+
+            this.lastTranscriptionId = result.id;
             this.chunkCount++;
 
-            const transcript = transcriptResult.text || 'No transcript';
-            const confidence = (transcriptResult.confidence * 100).toFixed(1);
-            
-            document.getElementById('transcript').innerHTML = `
-                <div class="text-sm text-gray-600 mb-2">
-                    Confidence: ${confidence}% | Duration: ${transcriptResult.duration || 'N/A'}s
-                </div>
-                <p class="leading-relaxed">${this.escapeHtml(transcript)}</p>
-            `;
-            
-            this.addLog(`✅ Transcription Complete`);
-            this.addLog(`   ID: ${transcriptResult.id.substring(0, 12)}...`);
-            this.addLog(`   Text: ${transcript.substring(0, 80)}...`);
-            this.addLog(`   Confidence: ${confidence}%`);
-            this.recorder.showToast('✅ Transcription done! Translating...', 'success');
+            const text = result.text || '';
+            const confidence = ((result.confidence || 0) * 100).toFixed(1);
+
+            document.getElementById('transcriptMeta').textContent =
+                `Confidence: ${confidence}% · Duration: ${result.duration || 'N/A'}s · Language: ${(result.language || language).toUpperCase()}`;
+            document.getElementById('transcript').innerHTML =
+                `<p>${this.escapeHtml(text)}</p>`;
+
+            this.setStepCompleted('transcribe');
+            this.addLog('Transcription complete', 'success');
 
             // Step 2: TRANSLATE
-            this.addLog(`\n[2/4] 🌍 Translating to all languages...`);
+            this.setStepActive('translate');
+            this.addLog('[2/4] Translating to all languages...');
+
             try {
-                const translationsResp = await this.api.translateToAllLanguages(this.lastTranscriptionId);
-                const translations = translationsResp.translations || {};
-                const langCount = Object.keys(translations).length;
-                
-                this.addLog(`✅ Translation Complete`);
-                this.addLog(`   Languages: ${langCount}`);
-                
-                // Update translation cards with actual translations
-                Object.entries(translations).forEach(([lang, text]) => {
-                    const elem = document.getElementById(`translation-${lang}`);
-                    if (elem) {
-                        elem.innerHTML = `
-                            <div class="text-xs text-gray-500 mb-1">Language: ${lang.toUpperCase()}</div>
-                            <p class="text-sm leading-relaxed">${this.escapeHtml(text.substring(0, 150))}...</p>
-                        `;
+                const transResp = await this.api.translateToAllLanguages(result.id);
+                const translations = transResp.translations || {};
+
+                Object.entries(translations).forEach(([lang, translatedText]) => {
+                    const el = document.getElementById(`translation-${lang}`);
+                    if (el) {
+                        el.textContent = translatedText.substring(0, 200);
                         this.processedLanguages.add(lang);
                     }
                 });
-                
-                this.addLog(`   Available: ${Object.keys(translations).join(', ')}`);
-                this.recorder.showToast('✅ Translations done! Extracting keywords...', 'success');
+
+                this.setStepCompleted('translate');
+                this.addLog(`Translated to ${Object.keys(translations).length} languages`, 'success');
             } catch (e) {
-                this.addLog(`❌ Translation failed: ${e.message}`, 'warning');
-                console.error('Translation error:', e);
+                this.addLog(`Translation failed: ${e.message}`, 'error');
+                this.setStepCompleted('translate');
             }
 
-            // Step 3: EXTRACT KEYWORDS
-            this.addLog(`\n[3/4] 🏷️ Extracting keywords and formulas...`);
+            // Step 3: EXTRACT
+            this.setStepActive('extract');
+            this.addLog('[3/4] Extracting keywords...');
+
             try {
-                const insights = await this.api.extractKeywords(this.lastTranscriptionId);
-                const keywords = insights.keywords || [];
-                const formulas = insights.formulas || [];
-                
-                this.displayKeywordsAndFormulas(keywords, formulas);
-                
-                this.addLog(`✅ Extraction Complete`);
-                this.addLog(`   Keywords: ${keywords.length}`);
-                this.addLog(`   Formulas: ${formulas.length}`);
-                this.addLog(`   Keywords: ${keywords.slice(0, 5).join(', ')}...`);
-                this.recorder.showToast('✅ Keywords extracted! Summarizing...', 'success');
+                const insights = await this.api.extractKeywords(result.id);
+                this.displayKeywords(insights.keywords || [], insights.formulas || []);
+                this.setStepCompleted('extract');
+                this.addLog(`Extracted ${(insights.keywords || []).length} keywords`, 'success');
             } catch (e) {
-                this.addLog(`❌ Extraction failed: ${e.message}`, 'warning');
-                console.error('Extraction error:', e);
+                this.addLog(`Extraction failed: ${e.message}`, 'error');
+                this.setStepCompleted('extract');
             }
 
             // Step 4: SUMMARIZE
-            this.addLog(`\n[4/4] ✨ Creating session summary...`);
+            this.setStepActive('summarize');
+            this.addLog('[4/4] Generating summary...');
+
             try {
                 const summaryResp = await this.api.summarizeSession();
-                const summaryText = summaryResp.summary || 'No summary available';
-                const summaryLines = summaryText.split('\n').length;
-                
-                document.getElementById('summary').innerHTML = `
-                    <div class="text-sm text-gray-600 mb-2">
-                        Summary Length: ${summaryText.length} characters | ${summaryLines} lines
-                    </div>
-                    <p class="leading-relaxed whitespace-pre-wrap">${this.escapeHtml(summaryText)}</p>
-                `;
-                
-                this.addLog(`✅ Summary Complete`);
-                this.addLog(`   Length: ${summaryText.length} characters`);
-                this.addLog(`   Preview: ${summaryText.substring(0, 100)}...`);
-                this.recorder.showToast('✅ Processing complete!', 'success');
+                const summaryText = summaryResp.summary || '';
+
+                document.getElementById('summaryMeta').textContent =
+                    `${summaryText.length} chars · Method: ${summaryResp.method || 'auto'}`;
+                document.getElementById('summary').innerHTML =
+                    `<p>${this.escapeHtml(summaryText)}</p>`;
+
+                this.setStepCompleted('summarize');
+                this.addLog('Summary generated', 'success');
             } catch (e) {
-                this.addLog(`❌ Summarization failed: ${e.message}`, 'warning');
-                console.error('Summary error:', e);
+                this.addLog(`Summarization failed: ${e.message}`, 'error');
+                this.setStepCompleted('summarize');
             }
 
             this.updateAnalytics();
-            this.addLog(`\n${'='.repeat(60)}`);
-            this.addLog(`✅ ALL PROCESSING COMPLETE`);
-            this.addLog(`${'='.repeat(60)}\n`);
+            this.recorder.showToast('Processing complete!', 'success');
+            this.addLog('All processing complete', 'success');
+
         } catch (error) {
-            console.error('Processing error:', error);
-            this.recorder.showToast(`❌ Error: ${error.message}`, 'error');
-            this.addLog(`\n❌ PROCESSING FAILED: ${error.message}`);
-            this.addLog(`Error details: ${error.toString()}\n`);
+            this.recorder.showToast(`Error: ${error.message}`, 'error');
+            this.addLog(`Processing failed: ${error.message}`, 'error');
         } finally {
             this.isProcessing = false;
         }
     }
 
-    displayKeywordsAndFormulas(keywords, formulas) {
-        const container = document.getElementById('keywords');
-        const content = [];
-
-        // Add keywords
-        if (keywords && Array.isArray(keywords)) {
-            keywords.forEach(keyword => {
-                this.allKeywords[keyword] = (this.allKeywords[keyword] || 0) + 1;
-                content.push(`
-                    <span class="inline-block bg-gradient-to-r from-green-100 to-green-200 text-green-800 px-3 py-1 rounded-full text-sm font-medium m-1">
-                        🏷️ ${this.escapeHtml(keyword)}
-                    </span>
-                `);
-            });
-        }
-
-        // Add formulas
-        if (formulas && Array.isArray(formulas)) {
-            formulas.forEach(formula => {
-                if (formula.formula) {
-                    content.push(`
-                        <span class="inline-block bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 px-3 py-1 rounded-full text-sm font-medium m-1">
-                            📐 ${this.escapeHtml(formula.formula)}
-                        </span>
-                    `);
-                }
-            });
-        }
-
-        container.innerHTML = content.length ? content.join('') : `
-            <p class="text-gray-500 italic text-center py-4">
-                No keywords found yet. Process audio to extract keywords.
-            </p>
-        `;
+    // ── Pipeline UI ───────────────────────────────────────────────
+    resetPipeline() {
+        ['transcribe', 'translate', 'extract', 'summarize'].forEach(step => {
+            const el = document.getElementById(`step-${step}`);
+            if (el) el.className = 'pipeline-step';
+        });
+        document.querySelectorAll('.pipeline-connector').forEach(c => c.classList.remove('active'));
     }
 
+    setStepActive(step) {
+        const el = document.getElementById(`step-${step}`);
+        if (el) el.className = 'pipeline-step active';
+    }
+
+    setStepCompleted(step) {
+        const el = document.getElementById(`step-${step}`);
+        if (el) {
+            el.className = 'pipeline-step completed';
+            // Animate the connector after this step
+            const connectors = document.querySelectorAll('.pipeline-connector');
+            const steps = ['transcribe', 'translate', 'extract', 'summarize'];
+            const idx = steps.indexOf(step);
+            if (idx >= 0 && idx < connectors.length) {
+                connectors[idx].classList.add('active');
+            }
+        }
+    }
+
+    // ── Display Keywords ──────────────────────────────────────────
+    displayKeywords(keywords, formulas) {
+        const container = document.getElementById('keywords');
+        const tags = [];
+
+        keywords.forEach(kw => {
+            this.allKeywords[kw] = (this.allKeywords[kw] || 0) + 1;
+            tags.push(`<span class="tag tag-keyword">🏷️ ${this.escapeHtml(kw)}</span>`);
+        });
+
+        formulas.forEach(f => {
+            const formula = typeof f === 'string' ? f : f.formula;
+            if (formula) {
+                tags.push(`<span class="tag tag-formula">📐 ${this.escapeHtml(formula)}</span>`);
+            }
+        });
+
+        container.innerHTML = tags.length
+            ? tags.join('')
+            : '<p class="placeholder-text">No keywords found</p>';
+    }
+
+    // ── Analytics ─────────────────────────────────────────────────
     updateAnalytics() {
-        // Chunks
-        document.getElementById('chunksCount').textContent = this.chunkCount || 0;
-
-        // Keywords
-        const uniqueKeywords = Object.keys(this.allKeywords).length;
-        document.getElementById('keywordCount').textContent = uniqueKeywords || 0;
-
-        // Languages
-        document.getElementById('languageCount').textContent = this.processedLanguages.size || 0;
+        document.getElementById('chunksCount').textContent = this.chunkCount;
+        document.getElementById('keywordCount').textContent = Object.keys(this.allKeywords).length;
+        document.getElementById('languageCount').textContent = this.processedLanguages.size;
 
         // Top Keywords
-        const topKeywords = Object.entries(this.allKeywords)
+        const sorted = Object.entries(this.allKeywords)
             .sort((a, b) => b[1] - a[1])
-            .slice(0, 5)
-            .map(([kw, count]) => `
-                <div class="text-sm text-gray-700 mb-1">
-                    • <strong>${this.escapeHtml(kw)}</strong> <span class="text-gray-500">(×${count})</span>
-                </div>
-            `)
-            .join('');
+            .slice(0, 8);
 
-        document.getElementById('topKeywordsList').innerHTML = topKeywords || `
-            <p class="text-sm text-gray-500 italic">No keywords yet</p>
-        `;
-        
-        this.addLog(`📊 Analytics Updated: ${uniqueKeywords} keywords | ${this.processedLanguages.size} languages | ${this.chunkCount} chunks`);
+        const listEl = document.getElementById('topKeywordsList');
+        listEl.innerHTML = sorted.length
+            ? sorted.map(([kw, count]) =>
+                `<div class="keyword-item">
+                    <span class="keyword-item-name">${this.escapeHtml(kw)}</span>
+                    <span class="keyword-item-count">×${count}</span>
+                </div>`
+            ).join('')
+            : '<p class="placeholder-text-sm">No keywords yet</p>';
     }
 
-    startSessionDurationTimer() {
+    startDurationTimer() {
         this.sessionDurationInterval = setInterval(() => {
             if (this.sessionStartTime) {
-                const elapsed = Math.floor((Date.now() - this.sessionStartTime) / 1000);
-                const minutes = Math.floor(elapsed / 60);
-                const seconds = elapsed % 60;
-                document.getElementById('sessionDuration').textContent = 
-                    minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+                const secs = Math.floor((Date.now() - this.sessionStartTime) / 1000);
+                const min = Math.floor(secs / 60);
+                document.getElementById('sessionDuration').textContent =
+                    min > 0 ? `${min}m ${secs % 60}s` : `${secs}s`;
             }
         }, 1000);
     }
 
-    handleWebSocketMessage(message) {
-        console.log('WebSocket message:', message);
-        // Messages from backend are logged in processing log
-        if (message.type === 'transcription') {
-            this.addLog('📨 Received transcription update');
-        } else if (message.type === 'translation') {
-            this.addLog('📨 Received translation update');
-        }
+    // ── WebSocket Handler ─────────────────────────────────────────
+    handleWSMessage(msg) {
+        if (msg.type) this.addLog(`WS: ${msg.type} update`);
     }
 
-    addLog(message, type = 'info') {
-        const logContainer = document.getElementById('processingLog');
-        const timestamp = new Date().toLocaleTimeString();
+    // ── Activity Log ──────────────────────────────────────────────
+    addLog(message, type = '') {
+        const container = document.getElementById('processingLog');
+        const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+
         const entry = document.createElement('div');
-        entry.className = `text-xs ${
-            type === 'error' ? 'text-red-600' : type === 'warning' ? 'text-yellow-600' : 'text-gray-600'
-        }`;
-        entry.textContent = `[${timestamp}] ${message}`;
-        logContainer.insertBefore(entry, logContainer.firstChild);
-        
-        // Keep only last 20 logs
-        while (logContainer.children.length > 20) {
-            logContainer.removeChild(logContainer.lastChild);
+        entry.className = `log-entry ${type}`;
+        entry.textContent = `[${time}] ${message}`;
+        container.insertBefore(entry, container.firstChild);
+
+        // Keep last 30 entries
+        while (container.children.length > 30) {
+            container.removeChild(container.lastChild);
         }
     }
 
-    updateConnectionStatus(connected, message = null) {
-        const statusDiv = document.getElementById('connectionStatus');
-        const connectedDiv = document.getElementById('connectedIndicator');
-
-        if (connected) {
-            statusDiv.classList.add('hidden');
-            connectedDiv.classList.remove('hidden');
-        } else {
-            statusDiv.classList.remove('hidden');
-            connectedDiv.classList.add('hidden');
-            if (message) {
-                document.getElementById('statusText').textContent = message;
-            }
-        }
-    }
-
+    // ── Utilities ─────────────────────────────────────────────────
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
@@ -478,9 +409,8 @@ System Features:
     }
 }
 
-// Initialize app when DOM is ready
+// ── Boot ──────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM loaded, starting application...');
     const app = new LectureAssistantApp();
     app.init().catch(console.error);
 });

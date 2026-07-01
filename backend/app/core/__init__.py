@@ -1,1 +1,1 @@
-# API module initialization
+"""Core configuration and infrastructure."""

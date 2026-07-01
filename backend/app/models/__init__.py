@@ -1,1 +1,1 @@
-# Models module initialization
+"""Database ORM models."""

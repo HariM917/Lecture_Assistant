@@ -1,1 +1,1 @@
-# API module initialization
+"""Application package."""

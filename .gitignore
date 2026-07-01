@@ -1,3 +1,4 @@
+# ── Python ─────────────────────────────────────────────────────
 .env
 .venv/
 venv/
@@ -7,8 +8,53 @@ __pycache__/
 *.pyo
 *.pyd
 .pytest_cache/
+*.egg-info/
+dist/
+build/
+htmlcov/
+.coverage
+.mypy_cache/
+
+# ── Node ───────────────────────────────────────────────────────
 node_modules/
 dist/
 build/
 *.log
+npm-debug.log*
+
+# ── Data / Uploads ─────────────────────────────────────────────
+data/
+audio/
+outputs/
+models/
+*.db
+*.sqlite
+*.sqlite3
+uploads/
+
+# ── ML Models & Weights ───────────────────────────────────────
+*.pt
+*.pth
+*.bin
+*.onnx
+*.h5
+*.pkl
+*.joblib
+
+# ── IDE ────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# ── OS ─────────────────────────────────────────────────────────
 .DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── Docker ─────────────────────────────────────────────────────
+*.tar
+docker-compose.override.yml

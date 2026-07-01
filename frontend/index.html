@@ -3,221 +3,299 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multilingual Lecture Assistant</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Lecture Assistant — AI-Powered Multilingual Transcription</title>
+    <meta name="description" content="Real-time lecture transcription, translation to 9+ languages, keyword extraction, and AI summarization.">
+    <meta name="theme-color" content="#0f0a1e">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
     <link rel="stylesheet" href="styles.css">
 </head>
-<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
-    <div class="container mx-auto px-4 py-8">
-        <!-- Header -->
-        <header class="mb-8">
-            <h1 class="text-4xl font-bold text-center text-indigo-900 mb-2">🎓 Multilingual Lecture Assistant</h1>
-            <p class="text-center text-gray-600">Real-time transcription, translation, and analysis</p>
-        </header>
-
-        <!-- Connection Status -->
-        <div id="connectionStatus" class="mb-6 p-4 rounded-lg bg-red-50 border-l-4 border-red-500 text-red-700 hidden">
-            <span id="statusText">Connecting to backend...</span>
-        </div>
-
-        <div id="connectedIndicator" class="mb-6 p-4 rounded-lg bg-green-50 border-l-4 border-green-500 text-green-700 hidden">
-            <span>✓ Connected to backend</span>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <!-- Main Content Area -->
-            <div class="lg:col-span-3 space-y-6">
-                <!-- Session Section -->
-                <div class="bg-white rounded-lg shadow-lg p-6">
-                    <h2 class="text-2xl font-bold text-indigo-900 mb-4">📋 Lecture Session</h2>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Lecture Title</label>
-                            <input type="text" id="lectureTitle" placeholder="e.g., Neural Networks 101" 
-                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                value="Neural Networks Lecture">
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Subject</label>
-                                <input type="text" id="subject" placeholder="Subject" 
-                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                    value="Computer Science">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Instructor</label>
-                                <input type="text" id="instructor" placeholder="Instructor name" 
-                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                                    value="Dr. Smith">
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <button id="createSessionBtn" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition">
-                                ✓ Start Session
-                            </button>
-                            <button id="endSessionBtn" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                                ⊗ End Session
-                            </button>
-                        </div>
-                        <p id="sessionInfo" class="text-sm text-gray-600 italic"></p>
-                    </div>
-                </div>
-
-                <!-- Audio Input Section -->
-                <div class="bg-white rounded-lg shadow-lg p-6">
-                    <h2 class="text-2xl font-bold text-indigo-900 mb-4">🎤 Audio Input</h2>
-                    <div class="space-y-4">
-                        <!-- Language Selection -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Audio Language</label>
-                            <select id="audioLanguage" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-                                <option value="en">🇬🇧 English</option>
-                                <option value="ta">🇮🇳 Tamil</option>
-                                <option value="hi">🇮🇳 Hindi</option>
-                                <option value="te">🇮🇳 Telugu</option>
-                                <option value="kn">🇮🇳 Kannada</option>
-                                <option value="ml">🇮🇳 Malayalam</option>
-                            </select>
-                        </div>
-
-                        <!-- Microphone Recording -->
-                        <div class="space-y-3">
-                            <p class="text-sm font-medium text-gray-700">Microphone Recording (5 seconds)</p>
-                            <div class="flex gap-3">
-                                <button id="startRecordBtn" class="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition font-medium">
-                                    🎙️ Start Recording
-                                </button>
-                                <button id="stopRecordBtn" class="flex-1 bg-orange-600 text-white px-4 py-3 rounded-lg hover:bg-orange-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                                    ⏹ Stop Recording
-                                </button>
-                            </div>
-                            <div id="recordingStatus" class="text-sm text-gray-600"></div>
-                            <canvas id="waveform" class="w-full h-16 bg-gray-100 rounded-lg border border-gray-200"></canvas>
-                        </div>
-
-                        <!-- File Upload -->
-                        <div class="space-y-3">
-                            <p class="text-sm font-medium text-gray-700">Or Upload Audio File</p>
-                            <div class="flex gap-3">
-                                <input type="file" id="audioFile" accept="audio/wav,audio/mp3,audio/mpeg,audio/webm" 
-                                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm">
-                                <button id="uploadAudioBtn" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition font-medium">
-                                    📤 Upload & Transcribe
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Results Section -->
-                <div class="bg-white rounded-lg shadow-lg p-6">
-                    <h2 class="text-2xl font-bold text-indigo-900 mb-4">📊 Results</h2>
-                    <div class="space-y-4">
-                        <!-- Transcript -->
-                        <div>
-                            <h3 class="font-semibold text-gray-800 mb-2">📝 Transcript</h3>
-                            <div id="transcript" class="bg-gray-50 p-4 rounded-lg min-h-24 text-gray-700 border border-gray-200">
-                                <p class="text-gray-500 italic">Transcript will appear here...</p>
-                            </div>
-                        </div>
-
-                        <!-- Translations -->
-                        <div>
-                            <h3 class="font-semibold text-gray-800 mb-2">🌍 Translations</h3>
-                            <div class="grid grid-cols-2 gap-3">
-                                <div class="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
-                                    <p class="text-xs font-semibold text-yellow-800 mb-1">Tamil</p>
-                                    <p id="translation-ta" class="text-sm text-gray-700">-</p>
-                                </div>
-                                <div class="bg-orange-50 p-3 rounded-lg border border-orange-200">
-                                    <p class="text-xs font-semibold text-orange-800 mb-1">Hindi</p>
-                                    <p id="translation-hi" class="text-sm text-gray-700">-</p>
-                                </div>
-                                <div class="bg-red-50 p-3 rounded-lg border border-red-200">
-                                    <p class="text-xs font-semibold text-red-800 mb-1">Telugu</p>
-                                    <p id="translation-te" class="text-sm text-gray-700">-</p>
-                                </div>
-                                <div class="bg-pink-50 p-3 rounded-lg border border-pink-200">
-                                    <p class="text-xs font-semibold text-pink-800 mb-1">Kannada</p>
-                                    <p id="translation-kn" class="text-sm text-gray-700">-</p>
-                                </div>
-                                <div class="bg-purple-50 p-3 rounded-lg border border-purple-200">
-                                    <p class="text-xs font-semibold text-purple-800 mb-1">Malayalam</p>
-                                    <p id="translation-ml" class="text-sm text-gray-700">-</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Summary -->
-                        <div>
-                            <h3 class="font-semibold text-gray-800 mb-2">✨ Summary</h3>
-                            <div id="summary" class="bg-blue-50 p-4 rounded-lg min-h-20 text-gray-700 border border-blue-200">
-                                <p class="text-gray-500 italic">Summary will appear here...</p>
-                            </div>
-                        </div>
-
-                        <!-- Keywords -->
-                        <div>
-                            <h3 class="font-semibold text-gray-800 mb-2">🏷️ Keywords & Formulas</h3>
-                            <div id="keywords" class="bg-green-50 p-4 rounded-lg min-h-20 text-gray-700 border border-green-200 flex flex-wrap gap-2">
-                                <p class="text-gray-500 italic w-full">Keywords and formulas will appear here...</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Sidebar: Analytics Dashboard -->
-            <div class="lg:col-span-1">
-                <div class="bg-white rounded-lg shadow-lg p-6 sticky top-8">
-                    <h2 class="text-2xl font-bold text-indigo-900 mb-4">📈 Analytics</h2>
-                    <div class="space-y-4">
-                        <!-- Metrics Cards -->
-                        <div class="bg-indigo-50 p-4 rounded-lg border-l-4 border-indigo-500">
-                            <p class="text-xs font-semibold text-indigo-700 uppercase">Chunks Processed</p>
-                            <p id="chunksCount" class="text-2xl font-bold text-indigo-900">0</p>
-                        </div>
-
-                        <div class="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
-                            <p class="text-xs font-semibold text-green-700 uppercase">Session Duration</p>
-                            <p id="sessionDuration" class="text-2xl font-bold text-green-900">0s</p>
-                        </div>
-
-                        <div class="bg-purple-50 p-4 rounded-lg border-l-4 border-purple-500">
-                            <p class="text-xs font-semibold text-purple-700 uppercase">Unique Keywords</p>
-                            <p id="keywordCount" class="text-2xl font-bold text-purple-900">0</p>
-                        </div>
-
-                        <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                            <p class="text-xs font-semibold text-blue-700 uppercase">Languages</p>
-                            <p id="languageCount" class="text-2xl font-bold text-blue-900">0</p>
-                        </div>
-
-                        <!-- Top Keywords List -->
-                        <div class="mt-6">
-                            <h3 class="font-semibold text-gray-800 mb-3">Top Keywords</h3>
-                            <div id="topKeywordsList" class="space-y-2">
-                                <p class="text-sm text-gray-500 italic">No keywords yet</p>
-                            </div>
-                        </div>
-
-                        <!-- Processing Log -->
-                        <div class="mt-6">
-                            <h3 class="font-semibold text-gray-800 mb-3">Processing Log</h3>
-                            <div id="processingLog" class="space-y-2 max-h-48 overflow-y-auto">
-                                <p class="text-xs text-gray-500">Logs will appear here...</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+<body>
+    <!-- ─── Ambient Background ─────────────────────────────────── -->
+    <div class="ambient-bg">
+        <div class="ambient-orb ambient-orb-1"></div>
+        <div class="ambient-orb ambient-orb-2"></div>
+        <div class="ambient-orb ambient-orb-3"></div>
     </div>
 
-    <!-- Toast Notification -->
-    <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg hidden pointer-events-none"></div>
+    <!-- ─── Top Navigation ─────────────────────────────────────── -->
+    <nav class="top-nav" id="topNav">
+        <div class="nav-brand">
+            <span class="nav-icon">🎓</span>
+            <span class="nav-title">Lecture Assistant</span>
+            <span class="nav-badge">v2.0</span>
+        </div>
+        <div class="nav-status" id="navStatus">
+            <span class="status-dot" id="statusDot"></span>
+            <span class="status-label" id="statusLabel">Connecting...</span>
+        </div>
+    </nav>
 
-    <!-- Scripts -->
+    <!-- ─── Main Container ─────────────────────────────────────── -->
+    <main class="app-container">
+
+        <!-- ─── Hero / Session Setup Card ──────────────────────── -->
+        <section class="glass-card card-entrance" id="sessionCard" style="--delay: 0">
+            <div class="card-header">
+                <div class="card-icon-wrap">
+                    <span class="card-icon">📋</span>
+                </div>
+                <div>
+                    <h2 class="card-title">Lecture Session</h2>
+                    <p class="card-subtitle" id="sessionStatus">Create a session to begin</p>
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-group form-group-full">
+                    <label for="lectureTitle" class="form-label">Lecture Title</label>
+                    <input type="text" id="lectureTitle" class="form-input"
+                           placeholder="e.g., Introduction to Neural Networks"
+                           value="Neural Networks Lecture" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="subject" class="form-label">Subject</label>
+                    <input type="text" id="subject" class="form-input"
+                           placeholder="Computer Science" value="Computer Science">
+                </div>
+                <div class="form-group">
+                    <label for="instructor" class="form-label">Instructor</label>
+                    <input type="text" id="instructor" class="form-input"
+                           placeholder="Dr. Smith" value="Dr. Smith">
+                </div>
+            </div>
+
+            <div class="btn-row">
+                <button id="createSessionBtn" class="btn btn-primary btn-glow">
+                    <span class="btn-icon">▶</span> Start Session
+                </button>
+                <button id="endSessionBtn" class="btn btn-danger" disabled>
+                    <span class="btn-icon">■</span> End Session
+                </button>
+            </div>
+        </section>
+
+        <!-- ─── Audio Input ────────────────────────────────────── -->
+        <section class="glass-card card-entrance" id="audioCard" style="--delay: 1">
+            <div class="card-header">
+                <div class="card-icon-wrap accent-blue">
+                    <span class="card-icon">🎤</span>
+                </div>
+                <div>
+                    <h2 class="card-title">Audio Input</h2>
+                    <p class="card-subtitle">Record or upload audio for transcription</p>
+                </div>
+            </div>
+
+            <!-- Language Selector -->
+            <div class="form-group">
+                <label for="audioLanguage" class="form-label">Audio Language</label>
+                <select id="audioLanguage" class="form-select">
+                    <option value="en">🇬🇧 English</option>
+                    <option value="ta">🇮🇳 Tamil</option>
+                    <option value="hi">🇮🇳 Hindi</option>
+                    <option value="te">🇮🇳 Telugu</option>
+                    <option value="kn">🇮🇳 Kannada</option>
+                    <option value="ml">🇮🇳 Malayalam</option>
+                    <option value="de">🇩🇪 German</option>
+                    <option value="zh">🇨🇳 Chinese</option>
+                    <option value="ja">🇯🇵 Japanese</option>
+                </select>
+            </div>
+
+            <!-- Recorder -->
+            <div class="recorder-section">
+                <div class="recorder-controls">
+                    <button id="startRecordBtn" class="btn btn-record">
+                        <span class="pulse-ring"></span>
+                        <span class="btn-icon">🎙️</span> Record
+                    </button>
+                    <button id="stopRecordBtn" class="btn btn-stop" disabled>
+                        <span class="btn-icon">⏹</span> Stop
+                    </button>
+                </div>
+                <div class="waveform-container">
+                    <canvas id="waveform" width="600" height="60"></canvas>
+                    <span class="recording-timer" id="recordingTimer">00:00</span>
+                </div>
+            </div>
+
+            <!-- File Upload -->
+            <div class="upload-zone" id="uploadZone">
+                <input type="file" id="audioFile" accept="audio/*" class="upload-input">
+                <div class="upload-content">
+                    <span class="upload-icon">📁</span>
+                    <p class="upload-text">Drop audio file here or <span class="upload-link">browse</span></p>
+                    <p class="upload-hint">Supports WAV, MP3, WebM, M4A (max 50MB)</p>
+                </div>
+            </div>
+            <button id="uploadAudioBtn" class="btn btn-secondary btn-full">
+                <span class="btn-icon">📤</span> Upload & Transcribe
+            </button>
+        </section>
+
+        <!-- ─── Processing Pipeline ────────────────────────────── -->
+        <section class="glass-card card-entrance" id="pipelineCard" style="--delay: 2">
+            <div class="card-header">
+                <div class="card-icon-wrap accent-purple">
+                    <span class="card-icon">⚡</span>
+                </div>
+                <div>
+                    <h2 class="card-title">Processing Pipeline</h2>
+                    <p class="card-subtitle">AI-powered analysis in real time</p>
+                </div>
+            </div>
+
+            <!-- Step Indicators -->
+            <div class="pipeline-steps">
+                <div class="pipeline-step" id="step-transcribe">
+                    <div class="step-indicator">1</div>
+                    <span class="step-label">Transcribe</span>
+                </div>
+                <div class="pipeline-connector"></div>
+                <div class="pipeline-step" id="step-translate">
+                    <div class="step-indicator">2</div>
+                    <span class="step-label">Translate</span>
+                </div>
+                <div class="pipeline-connector"></div>
+                <div class="pipeline-step" id="step-extract">
+                    <div class="step-indicator">3</div>
+                    <span class="step-label">Extract</span>
+                </div>
+                <div class="pipeline-connector"></div>
+                <div class="pipeline-step" id="step-summarize">
+                    <div class="step-indicator">4</div>
+                    <span class="step-label">Summarize</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ─── Results Grid ───────────────────────────────────── -->
+        <div class="results-grid">
+
+            <!-- Transcript -->
+            <section class="glass-card card-entrance result-card" style="--delay: 3">
+                <h3 class="result-title">
+                    <span class="result-icon">📝</span> Transcript
+                </h3>
+                <div class="result-meta" id="transcriptMeta"></div>
+                <div class="result-body" id="transcript">
+                    <p class="placeholder-text">Transcript will appear here after processing audio...</p>
+                </div>
+            </section>
+
+            <!-- Translations -->
+            <section class="glass-card card-entrance result-card" style="--delay: 4">
+                <h3 class="result-title">
+                    <span class="result-icon">🌍</span> Translations
+                </h3>
+                <div class="translations-grid" id="translationsGrid">
+                    <div class="translation-card lang-ta">
+                        <span class="lang-label">Tamil</span>
+                        <p class="lang-text" id="translation-ta">—</p>
+                    </div>
+                    <div class="translation-card lang-hi">
+                        <span class="lang-label">Hindi</span>
+                        <p class="lang-text" id="translation-hi">—</p>
+                    </div>
+                    <div class="translation-card lang-te">
+                        <span class="lang-label">Telugu</span>
+                        <p class="lang-text" id="translation-te">—</p>
+                    </div>
+                    <div class="translation-card lang-kn">
+                        <span class="lang-label">Kannada</span>
+                        <p class="lang-text" id="translation-kn">—</p>
+                    </div>
+                    <div class="translation-card lang-ml">
+                        <span class="lang-label">Malayalam</span>
+                        <p class="lang-text" id="translation-ml">—</p>
+                    </div>
+                    <div class="translation-card lang-de">
+                        <span class="lang-label">German</span>
+                        <p class="lang-text" id="translation-de">—</p>
+                    </div>
+                    <div class="translation-card lang-zh">
+                        <span class="lang-label">Chinese</span>
+                        <p class="lang-text" id="translation-zh">—</p>
+                    </div>
+                    <div class="translation-card lang-ja">
+                        <span class="lang-label">Japanese</span>
+                        <p class="lang-text" id="translation-ja">—</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Keywords & Formulas -->
+            <section class="glass-card card-entrance result-card" style="--delay: 5">
+                <h3 class="result-title">
+                    <span class="result-icon">🏷️</span> Keywords & Formulas
+                </h3>
+                <div class="tags-container" id="keywords">
+                    <p class="placeholder-text">Keywords and formulas will appear here...</p>
+                </div>
+            </section>
+
+            <!-- Summary -->
+            <section class="glass-card card-entrance result-card" style="--delay: 6">
+                <h3 class="result-title">
+                    <span class="result-icon">✨</span> AI Summary
+                </h3>
+                <div class="result-meta" id="summaryMeta"></div>
+                <div class="result-body summary-body" id="summary">
+                    <p class="placeholder-text">AI-generated summary will appear here...</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- ─── Analytics Sidebar ──────────────────────────────── -->
+        <aside class="glass-card card-entrance analytics-panel" style="--delay: 7">
+            <h3 class="analytics-title">📈 Live Analytics</h3>
+
+            <div class="metric-grid">
+                <div class="metric-card metric-indigo">
+                    <span class="metric-value" id="chunksCount">0</span>
+                    <span class="metric-label">Chunks</span>
+                </div>
+                <div class="metric-card metric-green">
+                    <span class="metric-value" id="sessionDuration">0s</span>
+                    <span class="metric-label">Duration</span>
+                </div>
+                <div class="metric-card metric-purple">
+                    <span class="metric-value" id="keywordCount">0</span>
+                    <span class="metric-label">Keywords</span>
+                </div>
+                <div class="metric-card metric-blue">
+                    <span class="metric-value" id="languageCount">0</span>
+                    <span class="metric-label">Languages</span>
+                </div>
+            </div>
+
+            <div class="analytics-section">
+                <h4 class="analytics-section-title">Top Keywords</h4>
+                <div id="topKeywordsList" class="keyword-list">
+                    <p class="placeholder-text-sm">No keywords yet</p>
+                </div>
+            </div>
+
+            <div class="analytics-section">
+                <h4 class="analytics-section-title">Activity Log</h4>
+                <div id="processingLog" class="log-container">
+                    <p class="placeholder-text-sm">Waiting for activity...</p>
+                </div>
+            </div>
+        </aside>
+
+    </main>
+
+    <!-- ─── Toast Notification ─────────────────────────────────── -->
+    <div id="toast" class="toast hidden"></div>
+
+    <!-- ─── Scripts ────────────────────────────────────────────── -->
     <script src="audio-recorder.js"></script>
     <script src="api-client.js"></script>
     <script src="app.js"></script>
