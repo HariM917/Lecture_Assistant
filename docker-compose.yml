@@ -1,0 +1,109 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: lecture_postgres
+    environment:
+      POSTGRES_USER: lecture_user
+      POSTGRES_PASSWORD: lecture_pass
+      POSTGRES_DB: lecture_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lecture_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lecture_network
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: lecture_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lecture_network
+    restart: unless-stopped
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lecture_backend
+    environment:
+      DATABASE_URL: postgresql://lecture_user:lecture_pass@postgres:5432/lecture_db
+      REDIS_URL: redis://redis:6379/0
+      DEBUG: "False"
+      HOST: "0.0.0.0"
+      BACKEND_PORT: "8000"
+      FRONTEND_PORT: "3000"
+      FRONTEND_URL: http://frontend:3000
+      WHISPER_MODEL: "base"
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    networks:
+      - lecture_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Frontend (Optional - for development)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: lecture_frontend
+    environment:
+      VITE_BACKEND_URL: http://backend:8000
+      VITE_API_BASE_URL: http://backend:8000/api
+      VITE_WS_URL: ws://backend:8000/ws
+      VITE_DEBUG: "true"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - lecture_network
+    restart: unless-stopped
+    profiles:
+      - frontend
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  lecture_network:
+    driver: bridge

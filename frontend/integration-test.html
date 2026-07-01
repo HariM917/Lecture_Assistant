@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend-Backend Integration Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .status-ok { @apply text-green-600 font-bold; }
+        .status-error { @apply text-red-600 font-bold; }
+        .console-log { @apply font-mono text-xs p-2 bg-gray-100 rounded max-h-96 overflow-y-auto; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-8">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-indigo-900 mb-2">🔗 Integration Test</h1>
+            <p class="text-gray-600">Frontend & Backend Connection Verification</p>
+        </div>
+
+        <!-- Status Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <!-- Frontend Status -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-xl font-bold mb-4 text-indigo-900">🎨 Frontend Status</h2>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span>Port:</span>
+                        <span class="status-ok">3000 ✅</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span>Status:</span>
+                        <span class="status-ok">Running ✅</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span>Framework:</span>
+                        <span class="status-ok">Vite ✅</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span>URL:</span>
+                        <span class="text-sm text-blue-600">http://localhost:3000</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Backend Status -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-xl font-bold mb-4 text-indigo-900">📡 Backend Status</h2>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span>Port:</span>
+                        <span id="backendPort" class="status-error">Checking...</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span>Health:</span>
+                        <span id="backendHealth" class="status-error">Checking...</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span>API Docs:</span>
+                        <span id="apiDocsLink" class="text-sm text-blue-600">Checking...</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span>URL:</span>
+                        <span class="text-sm text-blue-600">http://localhost:5000</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Connection Test -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-xl font-bold mb-4 text-indigo-900">🧪 Connection Tests</h2>
+            <div class="space-y-3">
+                <button id="testHealth" class="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition">
+                    Test Health Endpoint
+                </button>
+                <button id="testSession" class="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 transition" disabled>
+                    Test Session Creation
+                </button>
+                <button id="openApp" class="w-full bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700 transition">
+                    Open Main Application
+                </button>
+            </div>
+        </div>
+
+        <!-- Console Output -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-bold mb-4 text-indigo-900">📋 Test Console</h2>
+            <div id="console" class="console-log bg-gray-900 text-green-400">
+                <div>🚀 Initializing integration test...</div>
+                <div>📡 Checking backend connection...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const consoleEl = document.getElementById('console');
+        let backendHealthy = false;
+
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            let icon = '📝';
+            if (type === 'success') icon = '✅';
+            if (type === 'error') icon = '❌';
+            if (type === 'warning') icon = '⚠️';
+            
+            div.textContent = `[${timestamp}] ${icon} ${message}`;
+            
+            if (type === 'success') div.className = 'text-green-400';
+            if (type === 'error') div.className = 'text-red-400';
+            if (type === 'warning') div.className = 'text-yellow-400';
+            
+            consoleEl.appendChild(div);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        async function checkBackendHealth() {
+            try {
+                log('Checking backend health...');
+                const response = await fetch('http://localhost:5000/health');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`Backend health check passed: ${data.status}`, 'success');
+                    
+                    document.getElementById('backendPort').innerHTML = '5000 ✅';
+                    document.getElementById('backendPort').className = 'status-ok';
+                    
+                    document.getElementById('backendHealth').innerHTML = 'Healthy ✅';
+                    document.getElementById('backendHealth').className = 'status-ok';
+                    
+                    const apiDocsLink = document.getElementById('apiDocsLink');
+                    apiDocsLink.innerHTML = '<a href="http://localhost:5000/api/docs" target="_blank" class="text-blue-600 hover:underline">Available ✅</a>';
+                    
+                    document.getElementById('testSession').disabled = false;
+                    backendHealthy = true;
+                    return true;
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                log(`Backend health check failed: ${error.message}`, 'error');
+                log('Ensure backend is running: python main.py in backend folder', 'warning');
+                return false;
+            }
+        }
+
+        async function testSessionCreation() {
+            try {
+                log('Testing session creation API...');
+                const response = await fetch('http://localhost:5000/api/lecture/sessions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: 'Integration Test Session',
+                        subject: 'Frontend-Backend Connection',
+                        instructor: 'Integration Test'
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ Session created successfully!`, 'success');
+                    log(`Session ID: ${data.id.substring(0, 12)}...`, 'success');
+                    log(`Title: ${data.title}`, 'success');
+                    return true;
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                log(`Session creation test failed: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Event Listeners
+        document.getElementById('testHealth').addEventListener('click', checkBackendHealth);
+        document.getElementById('testSession').addEventListener('click', testSessionCreation);
+        document.getElementById('openApp').addEventListener('click', () => {
+            log('Opening main application...', 'success');
+            window.location.href = 'http://localhost:3000';
+        });
+
+        // Auto-check on load
+        window.addEventListener('load', () => {
+            log('Integration test page loaded', 'success');
+            setTimeout(checkBackendHealth, 500);
+        });
+    </script>
+</body>
+</html>
