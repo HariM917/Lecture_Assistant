@@ -158,6 +158,9 @@ Full interactive docs at `/api/docs` (Swagger) or `/api/redoc`.
 **Infrastructure:** Docker · PostgreSQL · Redis · Nginx
 
 ---
+## Contributors
+
+Hari M, Rathinaprabha G,
 
 ## 📄 License
 
