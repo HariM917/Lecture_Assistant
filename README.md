@@ -160,7 +160,7 @@ Full interactive docs at `/api/docs` (Swagger) or `/api/redoc`.
 ---
 ## Contributors
 
-Hari M, Rathinaprabha G, Dillikumar M S,Dhanasri K
+Hari M, Rathinaprabha G, Dillikumar M S,Dhanasri K, MAHIMA REETHI RODRIGO A
 
 ## 📄 License
 
